@@ -28,4 +28,5 @@ This Unity project requires proper integration with the **FMOD Audio Engine**.
 
 ---
 **Authors:** German Dominguez (gungo04@ufl.edu), Lunafreya Nguyen (toan.nguyen@ufl.edu)
+
 Advisor: Dr. Yu-Hao Lee (leeyuhao@jou.ufl.edu)
