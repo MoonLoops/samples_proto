@@ -21,6 +21,7 @@ class TargetFMOD : MonoBehaviour
     const int sampleSize = 84;
 
 
+
     void Start()
     {
         // Create the line renderer.
@@ -36,12 +37,6 @@ class TargetFMOD : MonoBehaviour
         FMODUnity.RuntimeManager.CoreSystem.createDSPByType(FMOD.DSP_TYPE.FFT, out _fft);
         _fft.setParameterInt((int)FMOD.DSP_FFT.WINDOWTYPE, (int)_windowShape);
         _fft.setParameterInt((int)FMOD.DSP_FFT.WINDOWSIZE, sampleSize * 2);
-
-        // Set the channel group to master.
-        FMODUnity.RuntimeManager.CoreSystem.getMasterChannelGroup(out _channelGroup);
-        _channelGroup.addDSP(FMOD.CHANNELCONTROL_DSP_INDEX.HEAD, _fft);
-
-
     }
     
 
@@ -56,50 +51,45 @@ class TargetFMOD : MonoBehaviour
         // Check for SPACE input to toggle play/pause playback.
         if (Input.GetKeyDown(KeyCode.Space))
         {
-            togglePlayback();   
+            TogglePlayback();   
         }
         // Check for S/s key input to stop playback.
         else if (Input.GetKeyDown(KeyCode.S))
         {
-            stopPlayback();
+            StopPlayback();
         }
-        // Check for X key for pitch up.
-        else if (Input.GetKey(KeyCode.X))
-        {
-            pitchUp();
-        }
-        // Check for  key for pitch up.
-        else if (Input.GetKey(KeyCode.Z))
-        {
-            pitchDown();
-        }
+        
 
         // If event is playing, and is not paused, update the line renderer based on FFT data.
         _event.getPaused(out Boolean paused);
-        if (isPlaying() && paused == false || isStopped())
+        if (IsPlaying() && paused == false || IsStopped())
         {
-            drawLineRenderer();
+            DrawLineRenderer();
         }
 
 
     }
 
     // Helper function to toggle the play/pause state of event after pressing space bar.
-    void togglePlayback()
+    void TogglePlayback()
     {
         // Check the event is valid.
         if (_event.isValid())
         {
             // If event hasn't started, start the event.
-            if (isStopped())
+            if (IsStopped())
             {
                 Debug.Log("Starting event... \n");
 
                 _event.setPaused(false);
                 _event.start();
+
+                // Set the channel group to the event instance group instead of master.
+                _event.getChannelGroup(out _channelGroup);
+                _channelGroup.addDSP(FMOD.CHANNELCONTROL_DSP_INDEX.HEAD, _fft);
             }
             // If event is playing, pause the event.
-            else if ( isPlaying() )
+            else if ( IsPlaying() )
             {
                 Debug.Log("Toggling the pause state. \n");
 
@@ -110,13 +100,13 @@ class TargetFMOD : MonoBehaviour
     }
 
     // Helper function to stop event playback altogether after S/s is pressed.
-    void stopPlayback()
+    void StopPlayback()
     {
         // Check the event is valid.
         if(_event.isValid() )
         {
             // If the event is playing, stop the playback.
-            if( isPlaying())
+            if( IsPlaying())
             {
                 Debug.Log("Stopping the event... \n");
 
@@ -139,21 +129,21 @@ class TargetFMOD : MonoBehaviour
    
 
     // Helper function to tell whether the event playback is playing.
-    Boolean isPlaying()
+    Boolean IsPlaying()
     {
     
-        return playbackState() == FMOD.Studio.PLAYBACK_STATE.PLAYING;
+        return PlaybackState() == FMOD.Studio.PLAYBACK_STATE.PLAYING;
     }
 
     // Helper function to tell whether the event playback is stopped.
-    Boolean isStopped()
+    Boolean IsStopped()
     {
 
-        return playbackState() == FMOD.Studio.PLAYBACK_STATE.STOPPED || playbackState() == FMOD.Studio.PLAYBACK_STATE.STOPPING;
+        return PlaybackState() == FMOD.Studio.PLAYBACK_STATE.STOPPED || PlaybackState() == FMOD.Studio.PLAYBACK_STATE.STOPPING;
     }
 
     // Helper function to get the playback state of the event.
-    FMOD.Studio.PLAYBACK_STATE playbackState()
+    FMOD.Studio.PLAYBACK_STATE PlaybackState()
     {
         FMOD.Studio.PLAYBACK_STATE pS;
         _event.getPlaybackState(out pS);
@@ -161,25 +151,11 @@ class TargetFMOD : MonoBehaviour
     }
 
 
-    // Helper function to pitch event up by 0.1f
-    void pitchUp()
-    {
-        _event.getPitch(out float currPitch);
-        _event.setPitch(currPitch + 0.01f);
-
-    }
-
-    // Helper function to pitch event down by 0.1f
-    void pitchDown()
-    {
-        _event.getPitch(out float currPitch);
-        _event.setPitch(currPitch - 0.01f);
-    }
-
+    
     const float WIDTH = 3.0f;
     const float HEIGHT = 0.01f;
     // Draws the line renderer of the target event.
-    void drawLineRenderer()
+    void DrawLineRenderer()
     {
         IntPtr unmanagedData;
         uint length;
