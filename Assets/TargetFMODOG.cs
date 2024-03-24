@@ -1,20 +1,13 @@
-// TARGET FMOD COMPONENT
-// Should be controlled by an Audio Manager object.
-
-
 using System;
 using UnityEngine;
-using FMOD.Studio;
 using System.Runtime.InteropServices;
 
-public class TargetFMOD : MonoBehaviour
+class TargetFMODOG : MonoBehaviour
 
 {
 
     ///////////// FMOD Event stuff
     public FMODUnity.EventReference _eventPath;
-    public float WIDTH = 3.0f;
-    public float HEIGHT = 0.01f;
 
     private FMOD.Studio.EventInstance _event;
     private FMOD.Channel _channel;
@@ -28,6 +21,7 @@ public class TargetFMOD : MonoBehaviour
     const int sampleSize = 84;
 
 
+
     void Start()
     {
         // Create the line renderer.
@@ -35,8 +29,6 @@ public class TargetFMOD : MonoBehaviour
         lineRenderer.positionCount = sampleSize;
         lineRenderer.startWidth = .1f;
         lineRenderer.endWidth = .1f;
-        //lineRenderer.startColor = Color.white; // @TODO fix this, for some reason not changing color.
-        //lineRenderer.endColor = Color.white;
 
         // Set event instance based on event path.
         _event = FMODUnity.RuntimeManager.CreateInstance(_eventPath);
@@ -50,6 +42,23 @@ public class TargetFMOD : MonoBehaviour
 
     void Update()
     {
+        
+
+        ////////////////////////////////
+        // INPUT CHECKS
+        ////////////////////////////////
+
+        // Check for SPACE input to toggle play/pause playback.
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            TogglePlayback();   
+        }
+        // Check for S/s key input to stop playback.
+        else if (Input.GetKeyDown(KeyCode.S))
+        {
+            StopPlayback();
+        }
+        
 
         // If event is playing, and is not paused, update the line renderer based on FFT data.
         _event.getPaused(out Boolean paused);
@@ -58,32 +67,11 @@ public class TargetFMOD : MonoBehaviour
             DrawLineRenderer();
         }
 
-    }
 
-    // Getter function for the event.
-    public FMOD.Studio.EventInstance GetTargetEvent() 
-    {
-        return _event;
-    }
-
-    // Getter function for the event description.
-    public FMOD.Studio.EventDescription GetTargetDescription() {
-        _event.getDescription(out EventDescription targetDescription);
-
-        return targetDescription;
-    }
-
-    // Gets the length of the target event in milliseconds.
-    public int GetTargetLength() {
-        EventDescription targetDescription = GetTargetDescription();
-        targetDescription.getLength(out int targetLength);
-
-        Debug.Log("[TARGET FMOD] Target Length (ms):  " + targetLength);
-        return targetLength;
     }
 
     // Helper function to toggle the play/pause state of event after pressing space bar.
-    public void TogglePlayback()
+    void TogglePlayback()
     {
         // Check the event is valid.
         if (_event.isValid())
@@ -112,7 +100,7 @@ public class TargetFMOD : MonoBehaviour
     }
 
     // Helper function to stop event playback altogether after S/s is pressed.
-    public void StopPlayback()
+    void StopPlayback()
     {
         // Check the event is valid.
         if(_event.isValid() )
@@ -139,11 +127,6 @@ public class TargetFMOD : MonoBehaviour
         }
     }
    
-    // Helper function to check if event is ready / valid.
-    public Boolean TargetEventReady() 
-    {
-        return _event.isValid();
-    }
 
     // Helper function to tell whether the event playback is playing.
     Boolean IsPlaying()
@@ -166,8 +149,11 @@ public class TargetFMOD : MonoBehaviour
         _event.getPlaybackState(out pS);
         return pS;
     }
+
+
     
-    
+    const float WIDTH = 3.0f;
+    const float HEIGHT = 0.01f;
     // Draws the line renderer of the target event.
     void DrawLineRenderer()
     {
@@ -196,6 +182,7 @@ public class TargetFMOD : MonoBehaviour
     }
 
     
+
     // Helper function to help clamp spectrum data values.
     float lin2dB(float linear)
     {

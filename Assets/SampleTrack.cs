@@ -1,6 +1,5 @@
-/**
- * Track FMOD script - visualizes an FMOD Event and creates a "Track" component for playback. 
- **/
+// SAMPLE TRACK COMPONENT
+// Sample Track - visualizes an FMOD Event and creates a "Track" component sprite.
 
 using UnityEngine;
 using System;
@@ -9,265 +8,165 @@ using System.Runtime.InteropServices;
 
 public class SampleTrack : MonoBehaviour
 {
-    public int width = 1024;
-    public int height = 256;
+    [SerializeField]
+    private int timelineWidth; // Represents a width that is equal to the reference length (in milliseconds).
+    [SerializeField]
+    private int timelineHeight;
+
+    private float widthPerMS; // Set by helper function.
     public Color background = Color.black;
     public Color foreground = Color.yellow;
 
-    public GameObject arrow = null;
     public Camera cam = null;
+    
+    private FMOD.Studio.EventInstance sampleEvent;
+    private Vector3 origin;
 
-    ///////////// FMOD DSP stuff
-    public FMODUnity.EventReference _sampleInstancePath;
-    public int _windowSize = 512;
-    public FMOD.DSP_FFT_WINDOW _windowShape = FMOD.DSP_FFT_WINDOW.RECT;
 
-    private FMOD.Studio.EventInstance _sampleInstance;
-    private FMOD.Channel _channel;
-    private FMOD.ChannelGroup _channelGroup;
-    private FMOD.DSP _dsp;
-    private FMOD.DSP_PARAMETER_FFT _fftparam;
-    private FMOD.DSP _fft;
+    ///////////// FMOD References 
+    
 
     // Private sprite and waveform fields.
     private SpriteRenderer sprend = null;
     private int samplesize;
-    private byte[] _samples = null;
+    //private byte[] _samples = null;
     private float[] waveform = null;
-    private float arrowoffsetx;
     private float originOffset;
-    private float arrowOriginOffset;
-
-    float delta = 0.001f;
 
 
     private void Start()
     {
+        
         // Initialize the sprite renderer.
         sprend = this.GetComponent<SpriteRenderer>();
 
-        // Prepare FMOD event, sets _sampleInstance.
-        PrepareFMODEventInstance();
-
-        // Get the waveform and add it to the sprite renderer.
-        Texture2D texwav = GetWaveformFMOD();
-        Rect rect = new Rect(Vector2.zero, new Vector2(width, height));
-        sprend.sprite = Sprite.Create(texwav, rect, Vector2.zero);
-
-
-        // Set cursor to origin.
-        CursorToOrigin();
-        originOffset = Math.Abs(arrow.transform.position.x);
-        arrowOriginOffset = originOffset + arrowoffsetx;
-
-        // Adjust the waveform sprite.
-        sprend.transform.Translate(Vector3.left * (sprend.size.x / 2f));
-
+        // Starts at 0.0f until set by reference length of target event.
+        widthPerMS = 0.0f;       
     }
 
     private void Update()
     {
-        UpdateCursorPosition();
-
-
-        ////////////////////////////////
-        // INPUT CHECKS
-        ////////////////////////////////
-
-        // Check for SPACE input to toggle play/pause playback.
-        if (Input.GetKeyDown(KeyCode.P))
-        {
-            TogglePlayback();
-        }
-        // Check for S/s key input to stop playback.
-        else if (Input.GetKeyDown(KeyCode.Return))
-        {
-            StopPlayback();
-
-            // Reset cursor position ...
-            CursorToOrigin();
-
-        }
-        // Check for X key for pitch up.
-        else if (Input.GetKey(KeyCode.UpArrow))
-        {
-
-            AdjustPitch(delta);
-        }
-        // Check for  key for pitch up.
-        else if (Input.GetKey(KeyCode.DownArrow))
-        {
-            AdjustPitch(-delta);
-        }        
-       
-    }
-
-    // Sets the cursor to its origin position.
-    void CursorToOrigin()
-    {
-        // Set event timeline position to 0.
-        _sampleInstance.setTimelinePosition(0);
-
-        // Adjust arrow and waveform sprite.
-        arrow.transform.position = new Vector3(0f, 0f, 1f);
-        arrow.transform.Translate(Vector3.left * (sprend.size.x / 2f));
-        arrowoffsetx = -(arrow.GetComponent<SpriteRenderer>().size.x / 2f);
-    }
-
-    // Updates the cursor while the event is playing.
-    void UpdateCursorPosition()
-    {
         
-        // Get current position and event length
-        _sampleInstance.getTimelinePosition(out int currentPosition); // both in milliseconds
-        _sampleInstance.getDescription(out FMOD.Studio.EventDescription eventDescription);
-        eventDescription.getLength(out int eventLength); // both in milliseconds
-
-        // Convert milliseconds to seconds for more accurate calculation
-        float currPossSeconds = (float)currentPosition / 1000;
-        float eventLengthSeconds = (float)eventLength / 1000;
-
-        // Calculate the offset based on the current position and event length
-        float xoffset = (currPossSeconds / eventLengthSeconds) * sprend.size.x;
-        xoffset -= originOffset; // originOffset is positive.
-        //Debug.Log("xoffset: " + xoffset);
-
-        // Update arrow position
-        arrow.transform.position = new Vector3(xoffset, arrow.transform.position.y, arrow.transform.position.z);
     }
 
-    ////////////////////// Playback Functions //////////////////////
-
-
-    // Helper function to toggle the play/pause state of event after pressing space bar.
-    void TogglePlayback()
+    // Helper function that sets the origin vector.
+    public void SetOriginVector(float x, float y, float z)
     {
-        // Check the event is valid.
-        if (_sampleInstance.isValid())
-        {
-            // If event hasn't started, start the event.
-            if (IsStopped())
-            {
-                Debug.Log("Starting event... \n");
+        origin = new Vector3(x, y, z);
+    }
 
-                _sampleInstance.setPaused(false);
-                _sampleInstance.start();
+    // Helper function that sets the timelineHeight from parent component.
+    public void SetTimelineWidth(int width)
+    {
+        timelineWidth = width;
+    }
 
-                // Set the channel group to the event instance group instead of master.
-                _sampleInstance.getChannelGroup(out _channelGroup);
-                _channelGroup.addDSP(FMOD.CHANNELCONTROL_DSP_INDEX.HEAD, _fft);
-            }
-            // If event is playing, pause the event.
-            else if (IsPlaying())
-            {
-                Debug.Log("Toggling the pause state. \n");
+    // Helper function that sets the timelineHeight from parent component.
+    public void SetTimelineHeight(int height)
+    {
+        timelineHeight = height;
+    }
 
-                _sampleInstance.getPaused(out Boolean paused);
-                _sampleInstance.setPaused(!paused);
-            }
+
+    // Helper function to set the sample event reference 
+    public void SetSampleEvent(FMOD.Studio.EventInstance eventInstance)
+    {
+        sampleEvent = eventInstance;
+    }
+
+    // Helper function to prepare the sample track "waveform" for this an event.
+    public void PrepareSampleTrack(int referenceLength = 0)
+    {       
+        // Continue if the reference length is valid, a.k.a. greater than 0.
+        if(referenceLength > 0)
+        {   
+            // Reference length is in milliseconds, twice the length of target song.
+
+            // Sample Texture Width is length of sample (ms) * widthPerMS
+            int sampleTextureWidth = GetSampleTextureWidth();
+
+            // Get the waveform and add it to the sprite renderer.
+            Texture2D texwav = GetWaveformFMOD(sampleTextureWidth);
+            // Width should be set from the event length, get it from the description.
+            Rect rect = new Rect(Vector2.zero, new Vector2(sampleTextureWidth, timelineHeight));
+            sprend.sprite = Sprite.Create(texwav, rect, Vector2.zero);
+
+            // Adjust the waveform sprite position.
+            transform.position = new Vector3(origin.x, transform.position.y, origin.z);
         }
+        
     }
 
-    // Helper function to stop event playback altogether after S/s is pressed.
-    void StopPlayback()
+    // Helper function to get the description of the sampleEvent.
+    public FMOD.Studio.EventDescription GetSampleDescription() 
     {
-        // Check the event is valid.
-        if (_sampleInstance.isValid())
-        {
-            // If the event is playing, stop the playback.
-            if (IsPlaying())
-            {
-                Debug.Log("Stopping the event... \n");
+        sampleEvent.getDescription(out FMOD.Studio.EventDescription sampleDesc);
+        return sampleDesc;
+    }
 
-                _sampleInstance.stop(FMOD.Studio.STOP_MODE.ALLOWFADEOUT);
-                //_sample.release(); // Don't do this here. Won't allow to play again.  
-            }
+    // Helper function to get the length of the sample event (in milliseconds).
+    public int GetSampleLength() 
+    {
+        FMOD.Studio.EventDescription sampleDesc = GetSampleDescription();
+        sampleDesc.getLength(out int sampleLength);
+
+        return sampleLength;
+    }
+
+    // Get the width per millisecond.
+    public float GetWidthPerMillisecond()
+    {
+        return widthPerMS;
+    }
+
+    // Set the width per millisecond.
+    public void SetWidthPerMillisecond(int referenceLength = 0)
+    {
+        // Proceed if referenceLength is greater than 0.
+        if(referenceLength > 0) 
+        {
+            widthPerMS = ((float)timelineWidth / (float)referenceLength);
             
+            Debug.Log("Width [int] : " + timelineWidth);
+            Debug.Log("Reference length (ms) :" + referenceLength);
+            Debug.Log("Width per ms [float] : " + widthPerMS);
         }
     }
 
+    // Helper function to get the width of the sample texture.
+    public int GetSampleTextureWidth() 
+    {   
+        // Get the length of the event in milliseconds.
+        int sampleLength = GetSampleLength();
 
-    // Helper function to tell whether the event playback is playing.
-    Boolean IsPlaying()
-    {
+        // Width of texture should be converted to (int)(sampleLength (ms) * widthPerMS)
+        int sampleTextureWidth = (int)(sampleLength * widthPerMS);
 
-        return PlaybackState() == FMOD.Studio.PLAYBACK_STATE.PLAYING;
+        Debug.Log("Sample length (ms) : " + sampleLength);
+        Debug.Log("Sample Texture Width [int] : " + sampleTextureWidth);
+
+
+        return sampleTextureWidth;
     }
 
-    // Helper function to tell whether the event playback is stopped.
-    Boolean IsStopped()
+    // Creates our representation of a wave form for this sample event.
+    public Texture2D GetWaveformFMOD(int sampleTextureWidth)
     {
-
-        return PlaybackState() == FMOD.Studio.PLAYBACK_STATE.STOPPED || PlaybackState() == FMOD.Studio.PLAYBACK_STATE.STOPPING;
-    }
-
-    Boolean IsPaused()
-    {
-        _sampleInstance.getPaused(out Boolean paused);
-
-        return paused == true;
-    }
-
-    // Helper function to get the playback state of the event.
-    FMOD.Studio.PLAYBACK_STATE PlaybackState()
-    {
-        FMOD.Studio.PLAYBACK_STATE pS;
-        _sampleInstance.getPlaybackState(out pS);
-        return pS;
-    }
-
-
-    // Helper function to pitch event up by 0.1f
-    void AdjustPitch(float delta)
-    {
-        _sampleInstance.getPitch(out float currPitch);
-        _sampleInstance.setPitch(currPitch + delta);
-
-    }
-
-    float GetPitch()
-    {
-        _sampleInstance.getPitch(out float currPitch);
-        Debug.Log("Current Pitch: " + currPitch);
-        return currPitch;
-        
-    }
-    ////////////////////// Event Prepare and Waveform //////////////////////
-
-
-    // Prepare FMOD Event Instance.
-    private void PrepareFMODEventInstance()
-    {
-        // Create the event instance from the event path, add 3D sound and start.
-        _sampleInstance = FMODUnity.RuntimeManager.CreateInstance(_sampleInstancePath);
-        _sampleInstance.set3DAttributes(FMODUnity.RuntimeUtils.To3DAttributes(gameObject.transform));
-
-        // Create the FFT dsp, set window type, and window size.
-        FMODUnity.RuntimeManager.CoreSystem.createDSPByType(FMOD.DSP_TYPE.FFT, out _dsp);
-        _dsp.setParameterInt((int)FMOD.DSP_FFT.WINDOWTYPE, (int)_windowShape);
-        _dsp.setParameterInt((int)FMOD.DSP_FFT.WINDOWSIZE, _windowSize * 2);
-
-    }
-
-    
-    private Texture2D GetWaveformFMOD()
-    {
-        int halfheight = height / 2;
+        int halfheight = timelineHeight / 2;
         float heightscale = (float)halfheight * 0.0025f;
 
         // get the sound data
-        Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
-        waveform = new float[width];
+        Texture2D tex = new Texture2D(sampleTextureWidth, timelineHeight, TextureFormat.RGBA32, false);
+        waveform = new float[sampleTextureWidth];
 
         // get samples from the helper function.
-        //_samples = 
-        samplesize = _windowSize; // @TODO change this.
+        samplesize = sampleTextureWidth; // @TODO change this.
 
         // map the sound data to texture
         // 1 - clear
-        for (int x = 0; x < width; x++)
+        for (int x = 0; x < sampleTextureWidth; x++)
         {
-            for (int y = 0; y < height; y++)
+            for (int y = 0; y < timelineHeight; y++)
             {
                 tex.SetPixel(x, y, background);
             }
